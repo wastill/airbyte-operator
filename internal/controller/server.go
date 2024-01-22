@@ -101,7 +101,7 @@ func (r *AirbyteReconciler) makeCoordinatorDeployments(instance *stackv1alpha1.A
 	return deployments
 }
 
-func (r *AirbyteReconciler) makeServerDeploymentForRoleGroup(instance *stackv1alpha1.Airbyte, roleGroupName string, roleGroup *stackv1alpha1.RoleGroupServerSpec, schema *runtime.Scheme) *appsv1.Deployment {
+func (r *AirbyteReconciler) makeServerDeploymentForRoleGroup(instance *stackv1alpha1.Airbyte, roleGroupName string, roleGroup *stackv1alpha1.RoleGroupServerSpec, schema *runtime.Scheme) (*appsv1.Deployment, error) {
 	labels := instance.GetLabels()
 
 	additionalLabels := make(map[string]string)
@@ -261,7 +261,7 @@ func (r *AirbyteReconciler) makeServerDeploymentForRoleGroup(instance *stackv1al
 	err := ctrl.SetControllerReference(instance, dep, schema)
 	if err != nil {
 		r.Log.Error(err, "Failed to set controller reference for deployment")
-		return nil
+		return nil, err
 	}
-	return dep
+	return dep, nil
 }

@@ -9,16 +9,17 @@ metadata:
     app.kubernetes.io/created-by: airbyte-operator
   name: airbyte
 spec:
-  global:
-    serviceAccountName: airbyte-admin
-    logs:
-      externalMinio:
-        enabled: true
-        host: "192.168.9.30"
-        port: 31826
-      s3:
-        enabled: false
-        bucket: "airbyte-dev-logs"
+
+#  global:
+#    serviceAccountName: airbyte-admin
+#    logs:
+#      externalMinio:
+#        enabled: true
+#        host: "192.168.9.30"
+#        port: 31826
+#      s3:
+#        enabled: false
+#        bucket: "airbyte-dev-logs"
   server:
     enabled: true
     replicas: 1
@@ -35,7 +36,7 @@ spec:
       type: ClusterIP
   worker:
     enabled: true
-    debug: true
+#    debug: true
     image:
       repository: airbyte/worker
       tag: 0.50.30

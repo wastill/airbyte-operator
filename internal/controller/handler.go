@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/zncdata-labs/operator-go/pkg/errors"
+	"github.com/zncdata-labs/operator-go/pkg/status"
 	"strconv"
 	"strings"
 
@@ -19,61 +21,69 @@ import (
 )
 
 func (r *AirbyteReconciler) reconcileIngress(ctx context.Context, instance *stackv1alpha1.Airbyte) error {
-	obj := r.makeIngress(instance, r.Scheme)
-	if obj == nil {
-		return nil
-	}
-
-	if err := CreateOrUpdate(ctx, r.Client, obj); err != nil {
-		r.Log.Error(err, "Failed to create or update ingress")
-		return err
-	}
-
-	if instance.Spec.WebApp.Ingress.Enabled {
-		url := fmt.Sprintf("http://%s", instance.Spec.WebApp.Ingress.Host)
-		if instance.Status.URLs == nil {
-			instance.Status.URLs = []stackv1alpha1.StatusURL{
-				{
-					Name: "webui",
-					URL:  url,
-				},
+	if instance.Spec.WebApp != nil {
+		for role, roleGroup := range instance.Spec.WebApp.RoleGroups {
+			obj, err := r.makeWebAppIngressForRoleGroup(instance, role, roleGroup, r.Scheme)
+			if err != nil {
+				return err
 			}
-			if err := r.UpdateStatus(ctx, instance); err != nil {
+			if err := CreateOrUpdate(ctx, r.Client, obj); err != nil {
+				r.Log.Error(err, "Failed to create or update ingress")
 				return err
 			}
 
-		} else if instance.Spec.WebApp.Ingress.Host != instance.Status.URLs[0].Name {
-			instance.Status.URLs[0].URL = url
-			if err := r.UpdateStatus(ctx, instance); err != nil {
-				return err
-			}
+			if instance.Spec.WebApp.Ingress.Enabled {
+				url := fmt.Sprintf("http://%s", instance.Spec.WebApp.Ingress.Host)
+				if instance.Status.URLs == nil {
+					instance.Status.URLs = []status.URL{
+						{
+							Name: "webui",
+							URL:  url,
+						},
+					}
+					if err := r.UpdateStatus(ctx, instance); err != nil {
+						return err
+					}
 
+				} else if instance.Spec.WebApp.Ingress.Host != instance.Status.URLs[0].Name {
+					instance.Status.URLs[0].URL = url
+					if err := r.UpdateStatus(ctx, instance); err != nil {
+						return err
+					}
+
+				}
+			}
 		}
 	}
-
 	return nil
 }
 
 func (r *AirbyteReconciler) reconcileService(ctx context.Context, instance *stackv1alpha1.Airbyte) error {
-
-	ServerService := r.makeServerService(instance, r.Scheme)
-	if ServerService == nil {
-		return nil
+	if instance.Spec.Server != nil {
+		for roleGroupName, roleGroup := range instance.Spec.Server.RoleGroups {
+			_, err := r.makeServerServiceForRoleGroup(instance, roleGroupName, roleGroup, r.Scheme)
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		return errors.New("airbyte's server can not be nil")
 	}
 
-	AirbyteApiServerService := r.makeAirbyteApiServerService(instance, r.Scheme)
-	if AirbyteApiServerService == nil {
-		return nil
+	if instance.Spec.ConnectorBuilderServer != nil {
+		for roleGroupName, roleGroup := range instance.Spec.ConnectorBuilderServer.RoleGroups {
+			_, err := r.makeConnectorBuilderServerServiceForRoleGroup(instance, roleGroupName, roleGroup, r.Scheme)
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		return errors.New("airbyte's connector builder server can not be nil")
 	}
 
-	ConnectorBuilderServerService := r.makeConnectorBuilderServerService(instance, r.Scheme)
-	if ConnectorBuilderServerService == nil {
-		return nil
-	}
-
-	TemporalService := r.makeTemporalService(instance, r.Scheme)
-	if TemporalService == nil {
-		return nil
+	TemporalService, err := r.makeTemporalService(instance, r.Scheme)
+	if err != nil {
+		return err
 	}
 
 	WebAppService := r.makeWebAppService(instance, r.Scheme)
@@ -135,19 +145,38 @@ func (r *AirbyteReconciler) reconcileService(ctx context.Context, instance *stac
 
 func (r *AirbyteReconciler) reconcileDeployment(ctx context.Context, instance *stackv1alpha1.Airbyte) error {
 
-	ServerDeployment := r.makeServerDeployment(instance, r.Scheme)
-	if ServerDeployment == nil {
-		return nil
+	if instance.Spec.Server != nil {
+		for role, roleGroup := range instance.Spec.Server.RoleGroups {
+			_, err := r.makeServerDeploymentForRoleGroup(instance, role, roleGroup, r.Scheme)
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		return errors.New("airbyte's server can not be nil")
 	}
 
-	WorkerDeployment := r.makeWorkerDeployment(instance, r.Scheme)
-	if WorkerDeployment == nil {
-		return nil
+	if instance.Spec.Worker != nil {
+		for role, roleGroup := range instance.Spec.Worker.RoleGroups {
+			_, err := r.makeWorkerDeploymentForRoleGroup(instance, role, roleGroup, r.Scheme)
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		return errors.New("airbyte's worker can not be nil")
 	}
 
-	AirbyteApiServerDeployment := r.makeAirbyteApiServerDeployment(instance, r.Scheme)
-	if AirbyteApiServerDeployment == nil {
-		return nil
+	if instance.Spec.AirbyteApiServer != nil {
+		for roleGroupName, roleGroup := range instance.Spec.AirbyteApiServer.RoleGroups {
+			_, err := r.makeAirbyteApiServerDeploymentForRoleGroup(instance, roleGroupName, roleGroup, r.Scheme)
+			if err != nil {
+				return err
+			}
+
+		}
+	} else {
+		return errors.New("airbyte's api server can not be nil")
 	}
 
 	ConnectorBuilderServerDeployment := r.makeConnectorBuilderServerDeployment(instance, r.Scheme)

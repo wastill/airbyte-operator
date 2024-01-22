@@ -2,12 +2,10 @@ module github.com/zncdata-labs/airbyte-operator
 
 go 1.21
 
-toolchain go1.21.1
-
 require (
 	github.com/onsi/ginkgo/v2 v2.13.0
 	github.com/onsi/gomega v1.29.0
-	github.com/zncdata-labs/operator-go v0.0.0-20240103025636-2884a47a1bef
+	github.com/zncdata-labs/operator-go v0.2.0
 	k8s.io/apimachinery v0.29.0
 	k8s.io/client-go v0.29.0
 	sigs.k8s.io/controller-runtime v0.16.3

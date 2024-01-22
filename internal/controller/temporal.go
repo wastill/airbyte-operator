@@ -11,7 +11,7 @@ import (
 	"strconv"
 )
 
-func (r *AirbyteReconciler) makeTemporalService(instance *stackv1alpha1.Airbyte, schema *runtime.Scheme) *corev1.Service {
+func (r *AirbyteReconciler) makeTemporalService(instance *stackv1alpha1.Airbyte, schema *runtime.Scheme) (*corev1.Service, error) {
 	labels := instance.GetLabels()
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -35,9 +35,9 @@ func (r *AirbyteReconciler) makeTemporalService(instance *stackv1alpha1.Airbyte,
 	err := ctrl.SetControllerReference(instance, svc, schema)
 	if err != nil {
 		r.Log.Error(err, "Failed to set controller reference for service")
-		return nil
+		return nil, err
 	}
-	return svc
+	return svc, nil
 }
 
 func (r *AirbyteReconciler) makeTemporalDeployment(instance *stackv1alpha1.Airbyte, schema *runtime.Scheme) *appsv1.Deployment {
@@ -45,8 +45,8 @@ func (r *AirbyteReconciler) makeTemporalDeployment(instance *stackv1alpha1.Airby
 
 	var envVars []corev1.EnvVar
 
-	if instance != nil && instance.Spec.Global != nil {
-		if instance.Spec.Global.DeploymentMode == "oss" {
+	if instance != nil && instance.Spec.ClusterConfig != nil {
+		if instance.Spec.ClusterConfig.DeploymentMode == "oss" {
 
 			envVars = append(envVars, corev1.EnvVar{
 				Name:  "AUTO_SETUP",
@@ -56,20 +56,20 @@ func (r *AirbyteReconciler) makeTemporalDeployment(instance *stackv1alpha1.Airby
 				Value: "postgresql",
 			})
 
-			if instance.Spec.Global.Database != nil {
-				if instance.Spec.Global.Database.Port != 0 {
+			if instance.Spec.ClusterConfig.Database != nil {
+				if instance.Spec.ClusterConfig.Database.Port != 0 {
 					envVars = append(envVars, corev1.EnvVar{
 						Name:  "DB_PORT",
-						Value: strconv.Itoa(int(instance.Spec.Global.Database.Port)),
+						Value: strconv.Itoa(int(instance.Spec.ClusterConfig.Database.Port)),
 					})
 				}
-			} else if instance.Spec.Global.ConfigMapName != "" {
+			} else if instance.Spec.ClusterConfig.ConfigMapName != "" {
 				envVars = append(envVars, corev1.EnvVar{
 					Name: "DB_PORT",
 					ValueFrom: &corev1.EnvVarSource{
 						ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
 							LocalObjectReference: corev1.LocalObjectReference{
-								Name: instance.Spec.Global.ConfigMapName,
+								Name: instance.Spec.ClusterConfig.ConfigMapName,
 							},
 							Key: "DATABASE_PORT",
 						},
@@ -114,8 +114,8 @@ func (r *AirbyteReconciler) makeTemporalDeployment(instance *stackv1alpha1.Airby
 			})
 
 			configMapName := instance.GetNameWithSuffix("-airbyte-env")
-			if instance.Spec.Global.ConfigMapName != "" {
-				configMapName = instance.Spec.Global.ConfigMapName
+			if instance.Spec.ClusterConfig.ConfigMapName != "" {
+				configMapName = instance.Spec.ClusterConfig.ConfigMapName
 			}
 
 			envVars = append(envVars, corev1.EnvVar{
@@ -153,7 +153,7 @@ func (r *AirbyteReconciler) makeTemporalDeployment(instance *stackv1alpha1.Airby
 		}
 	}
 
-	if instance != nil && (instance.Spec.Temporal != nil || instance.Spec.Global != nil) {
+	if instance != nil && (instance.Spec.Temporal != nil || instance.Spec.ClusterConfig != nil) {
 		envVarsMap := make(map[string]string)
 
 		if instance.Spec.Temporal != nil && instance.Spec.Temporal.EnvVars != nil {
@@ -162,8 +162,8 @@ func (r *AirbyteReconciler) makeTemporalDeployment(instance *stackv1alpha1.Airby
 			}
 		}
 
-		if instance.Spec.Global != nil && instance.Spec.Global.EnvVars != nil {
-			for key, value := range instance.Spec.Global.EnvVars {
+		if instance.Spec.ClusterConfig != nil && instance.Spec.ClusterConfig.EnvVars != nil {
+			for key, value := range instance.Spec.ClusterConfig.EnvVars {
 				envVarsMap[key] = value
 			}
 		}
@@ -317,7 +317,7 @@ limit.blobSize.warn:
 func (r *AirbyteReconciler) makeSecret(instance *stackv1alpha1.Airbyte) []*corev1.Secret {
 	var secrets []*corev1.Secret
 	labels := instance.GetLabels()
-	if instance.Spec.Global != nil && instance.Spec.Global.Logs != nil && instance.Spec.Global.Logs.Gcs != nil {
+	if instance.Spec.ClusterConfig != nil && instance.Spec.ClusterConfig.Logs != nil && instance.Spec.ClusterConfig.Logs.Gcs != nil {
 		secret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      instance.GetNameWithSuffix("-gcs-log-creds"),
@@ -326,25 +326,25 @@ func (r *AirbyteReconciler) makeSecret(instance *stackv1alpha1.Airbyte) []*corev
 			},
 			Type: corev1.SecretTypeOpaque,
 			Data: map[string][]byte{
-				"gcp.json": []byte(instance.Spec.Global.Logs.Gcs.CredentialsJson),
+				"gcp.json": []byte(instance.Spec.ClusterConfig.Logs.Gcs.CredentialsJson),
 			},
 		}
 		secrets = append(secrets, secret)
 
 	}
 
-	if instance.Spec.Global != nil && instance.Spec.Global.Logs != nil {
+	if instance.Spec.ClusterConfig != nil && instance.Spec.ClusterConfig.Logs != nil {
 		// Create a Data map to hold the secret data
 		data := make(map[string][]byte)
 
 		data["AWS_ACCESS_KEY_ID"] = []byte("")
-		if instance.Spec.Global.Logs.AccessKey != nil {
-			data["AWS_ACCESS_KEY_ID"] = []byte(instance.Spec.Global.Logs.AccessKey.Password)
+		if instance.Spec.ClusterConfig.Logs.AccessKey != nil {
+			data["AWS_ACCESS_KEY_ID"] = []byte(instance.Spec.ClusterConfig.Logs.AccessKey.Password)
 		}
 
 		data["AWS_SECRET_ACCESS_KEY"] = []byte("")
-		if instance.Spec.Global.Logs.SecretKey != nil {
-			data["AWS_SECRET_ACCESS_KEY"] = []byte(instance.Spec.Global.Logs.SecretKey.Password)
+		if instance.Spec.ClusterConfig.Logs.SecretKey != nil {
+			data["AWS_SECRET_ACCESS_KEY"] = []byte(instance.Spec.ClusterConfig.Logs.SecretKey.Password)
 		}
 
 		data["DATABASE_PASSWORD"] = []byte("")

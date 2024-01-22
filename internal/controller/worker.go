@@ -24,7 +24,7 @@ func (r *AirbyteReconciler) makeWorkerDeployments(instance *stackv1alpha1.Airbyt
 	return deployments
 }
 
-func (r *AirbyteReconciler) makeWorkerDeploymentForRoleGroup(instance *stackv1alpha1.Airbyte, roleGroupName string, roleGroup *stackv1alpha1.RoleGroupWorkerSpec, schema *runtime.Scheme) *appsv1.Deployment {
+func (r *AirbyteReconciler) makeWorkerDeploymentForRoleGroup(instance *stackv1alpha1.Airbyte, roleGroupName string, roleGroup *stackv1alpha1.RoleGroupWorkerSpec, schema *runtime.Scheme) (*appsv1.Deployment, error) {
 	labels := instance.GetLabels()
 
 	additionalLabels := make(map[string]string)
@@ -236,7 +236,7 @@ func (r *AirbyteReconciler) makeWorkerDeploymentForRoleGroup(instance *stackv1al
 	err := ctrl.SetControllerReference(instance, dep, schema)
 	if err != nil {
 		r.Log.Error(err, "Failed to set controller reference for deployment")
-		return nil
+		return nil, err
 	}
-	return dep
+	return dep, nil
 }

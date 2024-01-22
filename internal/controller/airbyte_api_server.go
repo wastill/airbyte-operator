@@ -90,19 +90,10 @@ func (r *AirbyteReconciler) makeAirbyteApiServerServiceForRoleGroup(instance *st
 func (r *AirbyteReconciler) makeAirbyteApiServerDeployment(instance *stackv1alpha1.Airbyte) ([]*appsv1.Deployment, error) {
 	var deployments []*appsv1.Deployment
 
-	if instance.Spec.AirbyteApiServer.RoleGroups != nil {
-		for roleGroupName, roleGroup := range instance.Spec.AirbyteApiServer.RoleGroups {
-			dep := r.makeAirbyteApiServerDeploymentForRoleGroup(instance, roleGroupName, roleGroup, r.Scheme)
-			if dep != nil {
-				deployments = append(deployments, dep)
-			}
-		}
-	}
-
 	return deployments, nil
 }
 
-func (r *AirbyteReconciler) makeAirbyteApiServerDeploymentForRoleGroup(instance *stackv1alpha1.Airbyte, roleGroupName string, roleGroup *stackv1alpha1.RoleGroupAirbyteApiServerSpec, schema *runtime.Scheme) *appsv1.Deployment {
+func (r *AirbyteReconciler) makeAirbyteApiServerDeploymentForRoleGroup(instance *stackv1alpha1.Airbyte, roleGroupName string, roleGroup *stackv1alpha1.RoleGroupAirbyteApiServerSpec, schema *runtime.Scheme) (*appsv1.Deployment, error) {
 	labels := instance.GetLabels()
 
 	additionalLabels := make(map[string]string)
@@ -292,9 +283,9 @@ func (r *AirbyteReconciler) makeAirbyteApiServerDeploymentForRoleGroup(instance 
 	err := ctrl.SetControllerReference(instance, dep, schema)
 	if err != nil {
 		r.Log.Error(err, "Failed to set controller reference for deployment")
-		return nil
+		return nil, err
 	}
-	return dep
+	return dep, nil
 }
 
 func (r *AirbyteReconciler) makeAirbyteApiServerSecret(instance *stackv1alpha1.Airbyte) ([]*corev1.Secret, error) {
